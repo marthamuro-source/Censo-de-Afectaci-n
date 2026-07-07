@@ -586,25 +586,39 @@ try {
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch(e) { console.error("No se pudo conectar a Supabase:", e); }
 
+// Banner visible de error, para no depender solo de la consola del navegador.
+function mostrarErrorSupabase(operacion, error) {
+  console.error(operacion, error);
+  let banner = document.getElementById('supabaseErrorBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'supabaseErrorBanner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#C00000;color:#fff;padding:10px 16px;font-size:13px;z-index:9999;text-align:center;';
+    document.body.prepend(banner);
+  }
+  banner.textContent = `⚠ Error de Supabase (${operacion}): ${error?.message || error}`;
+  banner.style.display = 'block';
+}
+
 // Reemplaza el almacenamiento de Claude por Supabase, con la MISMA forma (get/set/delete/list)
 // que ya usa todo el codigo de abajo, para no tener que tocar nada mas.
 window.storage = {
   async get(key) {
     if (!sb) return null;
     const { data, error } = await sb.from('kv_store').select('value').eq('key', key).maybeSingle();
-    if (error) { console.error('storage.get', error); return null; }
+    if (error) { mostrarErrorSupabase('get ' + key, error); return null; }
     return data ? { key, value: data.value } : null;
   },
   async set(key, value) {
     if (!sb) return null;
     const { error } = await sb.from('kv_store').upsert({ key, value, updated_at: new Date().toISOString() });
-    if (error) { console.error('storage.set', error); return null; }
+    if (error) { mostrarErrorSupabase('set ' + key, error); return null; }
     return { key, value };
   },
   async delete(key) {
     if (!sb) return null;
     const { error } = await sb.from('kv_store').delete().eq('key', key);
-    if (error) { console.error('storage.delete', error); return null; }
+    if (error) { mostrarErrorSupabase('delete ' + key, error); return null; }
     return { key, deleted:true };
   },
   async list(prefix) {
@@ -612,7 +626,7 @@ window.storage = {
     let query = sb.from('kv_store').select('key');
     if (prefix) query = query.like('key', `${prefix}%`);
     const { data, error } = await query;
-    if (error) { console.error('storage.list', error); return null; }
+    if (error) { mostrarErrorSupabase('list ' + prefix, error); return null; }
     return { keys: (data||[]).map(d => d.key) };
   }
 };
@@ -633,15 +647,15 @@ let historialState = {}; // { folio: [ {tipo, fecha, ...} ] } -- bitacora inmuta
 let draftConfirmacion = {}; // { folio: { origen:'confirmacion'|'progreso', tramos:[ {..TRAMO_FIELDS..} ] } }
 
 async function persistValidacion() {
-  try { await window.storage?.set('censo-validacion', JSON.stringify(validacionState)); } catch(e) {}
+  try { await window.storage?.set('censo-validacion', JSON.stringify(validacionState)); } catch(e) { mostrarErrorSupabase('persistValidacion', e); }
 }
 
 async function persistDraftConfirmacion() {
-  try { await window.storage?.set('censo-draft-confirmacion', JSON.stringify(draftConfirmacion)); } catch(e) {}
+  try { await window.storage?.set('censo-draft-confirmacion', JSON.stringify(draftConfirmacion)); } catch(e) { mostrarErrorSupabase('persistDraftConfirmacion', e); }
 }
 
 async function persistHistorial() {
-  try { await window.storage?.set('censo-historial', JSON.stringify(historialState)); } catch(e) {}
+  try { await window.storage?.set('censo-historial', JSON.stringify(historialState)); } catch(e) { mostrarErrorSupabase('persistHistorial', e); }
 }
 
 function agregarHistorial(folio, entry) {
@@ -657,18 +671,22 @@ function formatFechaHora(iso) {
          d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
 }
 
+function esArchivoSubido(val) {
+  return val.startsWith('data:') || val.includes('/storage/v1/object/public/');
+}
+
 function linkRutaDisplay(val) {
   if (!val) return '-';
-  if (val.startsWith('data:')) {
-    return `<a href="${val}" download="ruta_solicitada.kmz" style="background:#eef1f8;color:var(--navy);padding:4px 10px;border-radius:12px;font-size:12px;text-decoration:none;">📎 Descargar KMZ adjunto</a>`;
+  if (esArchivoSubido(val)) {
+    return `<a href="${val}" target="_blank" style="background:#eef1f8;color:var(--navy);padding:4px 10px;border-radius:12px;font-size:12px;text-decoration:none;">📎 Descargar KMZ adjunto</a>`;
   }
   return `<a href="${val}">${val}</a>`;
 }
 
 function archivoOLinkDisplay(val, nombreArchivo) {
   if (!val || val === '-') return '-';
-  if (val.startsWith('data:')) {
-    return `<a href="${val}" download="${nombreArchivo}" style="background:#eef1f8;color:var(--navy);padding:4px 10px;border-radius:12px;font-size:12px;text-decoration:none;">📎 Descargar archivo adjunto</a>`;
+  if (esArchivoSubido(val)) {
+    return `<a href="${val}" target="_blank" style="background:#eef1f8;color:var(--navy);padding:4px 10px;border-radius:12px;font-size:12px;text-decoration:none;">📎 Descargar archivo adjunto</a>`;
   }
   return `<a href="${val}">${val}</a>`;
 }
@@ -939,7 +957,7 @@ function renderBaseDatos(filtro) {
   document.getElementById('tablaBaseBody').innerHTML = filas.map(r => `
     <tr>${columnas.map(c => {
       let val = r[c] || '';
-      if (c === 'Imagen A' && val) val = val.startsWith('data:') ? '[imagen adjunta]' : val;
+      if (c === 'Imagen A' && val) val = esArchivoSubido(val) ? '[imagen adjunta]' : val;
       if (val && val.length > 60) val = val.slice(0, 57) + '...';
       const esSiNo = ['Si','No','No aplica'].includes(r[c]);
       const style = esSiNo ? `color:${r[c]==='Si'?'#375623':(r[c]==='No'?'#9C0006':'#888')};font-weight:bold;` : '';
@@ -1058,7 +1076,7 @@ function openTramo(folio) {
       .map(({campo, val}) => {
         const esSiNo = ['Si','No aplica'].includes(val);
         let display;
-        if (val.startsWith('data:')) display = archivoOLinkDisplay(val, campo.replace(/\s+/g,'_') + '.pdf');
+        if (esArchivoSubido(val)) display = archivoOLinkDisplay(val, campo.replace(/\s+/g,'_') + '.pdf');
         else if (esSiNo) display = `<span style="padding:2px 8px;border-radius:2px;font-size:11.5px;background:${val==='Si'?'#E2EFDA':'#f2f2f2'};color:${val==='Si'?'#375623':'#888'};">${val}</span>`;
         else display = val;
         return `<tr><td class="k" style="width:50%;">${campo}</td><td class="v" style="font-weight:normal;">${display}</td></tr>`;
@@ -1104,36 +1122,42 @@ function nextFolio() {
 // ---------- Levantar solicitud ----------
 let levImagenData = null, levKmzData = null;
 
-function handleImagenUpload(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    levImagenData = reader.result; // data:image/...;base64,...
-    document.getElementById('levImagenStatus').textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
-    const prev = document.getElementById('levImagenPreview');
-    prev.src = levImagenData;
-    prev.style.display = 'inline-block';
-    document.getElementById('levImagen').value = '';
-    document.getElementById('levImagen').placeholder = 'Se usara la imagen subida';
-  };
-  reader.readAsDataURL(file);
+// Sube un archivo al bucket de Supabase Storage y regresa el link publico real.
+async function subirArchivoASupabase(file, statusEl) {
+  if (!sb) { alert('No hay conexion a Supabase configurada.'); return null; }
+  if (statusEl) statusEl.textContent = `Subiendo ${file.name}...`;
+  const path = `${Date.now()}_${file.name.replace(/[^\w.\-]/g, '_')}`;
+  const { error } = await sb.storage.from('censo-files').upload(path, file, { upsert: true });
+  if (error) { mostrarErrorSupabase('subir archivo', error); if (statusEl) statusEl.textContent = 'Error al subir el archivo.'; return null; }
+  const { data } = sb.storage.from('censo-files').getPublicUrl(path);
+  return data.publicUrl;
 }
 
-function handleKmzUpload(e) {
+async function handleImagenUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (file.size > 4 * 1024 * 1024) {
-    alert('El archivo pesa mas de 4 MB. Para archivos grandes, mejor sube el KMZ a Drive y pega el link, o el guardado podria fallar.');
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    levKmzData = reader.result;
-    document.getElementById('levKmzStatus').textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
-    document.getElementById('levLinkRuta').value = '';
-    document.getElementById('levLinkRuta').placeholder = 'Se usara el KMZ subido';
-  };
-  reader.readAsDataURL(file);
+  const statusEl = document.getElementById('levImagenStatus');
+  const url = await subirArchivoASupabase(file, statusEl);
+  if (!url) return;
+  levImagenData = url;
+  statusEl.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
+  const prev = document.getElementById('levImagenPreview');
+  prev.src = url;
+  prev.style.display = 'inline-block';
+  document.getElementById('levImagen').value = '';
+  document.getElementById('levImagen').placeholder = 'Se usara la imagen subida';
+}
+
+async function handleKmzUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('levKmzStatus');
+  const url = await subirArchivoASupabase(file, statusEl);
+  if (!url) return;
+  levKmzData = url;
+  statusEl.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
+  document.getElementById('levLinkRuta').value = '';
+  document.getElementById('levLinkRuta').placeholder = 'Se usara el KMZ subido';
 }
 
 function openLevantarSolicitud() {
@@ -1388,21 +1412,17 @@ function fieldInputHtml(field, idx) {
   return `<input type="text" id="${id}">`;
 }
 
-function handleArchivoUpload(event, inputId) {
+async function handleArchivoUpload(event, inputId) {
   const file = event.target.files[0];
   if (!file) return;
-  if (file.size > 4 * 1024 * 1024) {
-    alert('El archivo pesa mas de 4 MB. Para archivos grandes, mejor sube el archivo a Drive y pega el link, o el guardado podria fallar.');
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const el = document.getElementById(inputId);
-    el.dataset.fileuploaded = reader.result;
-    el.value = '';
-    el.placeholder = 'Se usara el archivo subido (escribe un link para reemplazarlo)';
-    document.getElementById(`${inputId}_status`).textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
-  };
-  reader.readAsDataURL(file);
+  const statusEl = document.getElementById(`${inputId}_status`);
+  const url = await subirArchivoASupabase(file, statusEl);
+  if (!url) return;
+  const el = document.getElementById(inputId);
+  el.dataset.fileuploaded = url;
+  el.value = '';
+  el.placeholder = 'Se usara el archivo subido (escribe un link para reemplazarlo)';
+  statusEl.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
 }
 
 function renderTramoFieldset(idx) {
@@ -1473,7 +1493,7 @@ function openResponderSolicitud(folio, modo, razon) {
         const el = document.getElementById(id);
         if (!el) return;
         const val = row[f.campo] || "";
-        if (f.tipo === 'archivo' && val.startsWith('data:')) {
+        if (f.tipo === 'archivo' && esArchivoSubido(val)) {
           el.dataset.fileuploaded = val;
           el.value = '';
           el.placeholder = 'Archivo ya cargado (sube otro para reemplazarlo, o escribe un link nuevo)';
@@ -1599,7 +1619,7 @@ function guardarRespuesta() {
 }
 
 async function persistRecords() {
-  try { await window.storage?.set('censo-records', JSON.stringify(records)); } catch(e) {}
+  try { await window.storage?.set('censo-records', JSON.stringify(records)); } catch(e) { mostrarErrorSupabase('persistRecords', e); }
 }
 
 // ---------- Checklist de recepcion ----------
@@ -1787,7 +1807,7 @@ function seccionTramoHtml(rows) {
       .map(({campo, val}) => {
         const esSiNo = ['Si','No aplica'].includes(val);
         let display;
-        if (val.startsWith('data:')) display = archivoOLinkDisplay(val, campo.replace(/\s+/g,'_') + '.pdf');
+        if (esArchivoSubido(val)) display = archivoOLinkDisplay(val, campo.replace(/\s+/g,'_') + '.pdf');
         else if (esSiNo) display = `<span style="padding:2px 8px;border-radius:2px;font-size:11.5px;background:${val==='Si'?'#E2EFDA':'#f2f2f2'};color:${val==='Si'?'#375623':'#888'};">${val}</span>`;
         else display = val;
         return `<tr><td class="k" style="width:50%;">${campo}</td><td class="v" style="font-weight:normal;">${display}</td></tr>`;
@@ -1889,7 +1909,7 @@ function seccionRespuestaHistHtml(entry) {
       .map(({campo, val}) => {
         const esSiNo = ['Si','No aplica'].includes(val);
         let display;
-        if (val.startsWith('data:')) display = archivoOLinkDisplay(val, campo.replace(/\s+/g,'_') + '.pdf');
+        if (esArchivoSubido(val)) display = archivoOLinkDisplay(val, campo.replace(/\s+/g,'_') + '.pdf');
         else if (esSiNo) display = `<span style="padding:2px 8px;border-radius:2px;font-size:11.5px;background:${val==='Si'?'#E2EFDA':'#f2f2f2'};color:${val==='Si'?'#375623':'#888'};">${val}</span>`;
         else display = val;
         return `<tr><td class="k" style="width:50%;">${campo}</td><td class="v" style="font-weight:normal;">${display}</td></tr>`;

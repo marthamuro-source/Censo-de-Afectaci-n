@@ -988,9 +988,7 @@ function renderTurnos(censos) {
       accion = `<button class="btn" style="background:var(--plum);" onclick="openChecklist('${c.folio}')">☑ Ver checklist</button>`;
     }
 
-    const modificar = c.workflow !== "en_permisos"
-      ? `<button class="btn" style="background:var(--steel);" onclick="abrirModificarTipo('${c.folio}')">🛠 Modificar</button>`
-      : `<span style="color:#c3ccd6;">—</span>`;
+    const modificar = `<button class="btn" style="background:var(--steel);" onclick="abrirModificarTipo('${c.folio}')">🛠 Modificar</button>`;
 
     const exportar = `<button class="btn btn-solicitud" onclick="exportarInformeFolio('${c.folio}')">📄 Exportar PDF</button>
       <button class="btn" style="background:var(--gold);margin-left:6px;" onclick="verHistorialFolio('${c.folio}')">🕐 Ver historial</button>`;

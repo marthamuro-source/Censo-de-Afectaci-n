@@ -420,7 +420,11 @@
         <div style="padding:12px 14px 4px;">
           <div class="form-row">
             <label>Solicitante *</label>
-            <select id="levSolicitante"></select>
+            <select id="levSolicitante" onchange="document.getElementById('levSolicitanteOtroWrap').style.display = this.value==='__otro__' ? 'block' : 'none';"></select>
+          </div>
+          <div class="form-row" id="levSolicitanteOtroWrap" style="display:none;">
+            <label>Nombre del solicitante</label>
+            <input type="text" id="levSolicitanteOtro" placeholder="Escribe el nombre completo">
           </div>
           <div class="form-row">
             <label>Proyecto / Ruta *</label>
@@ -510,7 +514,11 @@
     <div style="padding:14px 36px 0;">
       <div class="form-row">
         <label>Responsable de la respuesta *</label>
-        <select id="respResponsable"></select>
+        <select id="respResponsable" onchange="document.getElementById('respResponsableOtroWrap').style.display = this.value==='__otro__' ? 'block' : 'none';"></select>
+      </div>
+      <div class="form-row" id="respResponsableOtroWrap" style="display:none;">
+        <label>Nombre del responsable</label>
+        <input type="text" id="respResponsableOtro" placeholder="Escribe el nombre completo">
       </div>
     </div>
     <div style="padding:12px 36px 0;" id="respTramosWrap"></div>
@@ -787,14 +795,14 @@ function archivoOLinkDisplay(val, nombreArchivo) {
 }
 
 // ---------- Catalogos para los formularios de Turnos ----------
-const SOLICITANTES=["Hazael","Janett","Raquel","Francisco","Saul","Sergio"];
+const SOLICITANTES=["Hazael Fernán Mayo Gallardo","Janett Mendiola Juarez","Martha Raquel Muro Morales"];
 const ESTADOS_MX=["Aguascalientes","Baja California","Baja California Sur","Campeche","Chiapas","Chihuahua",
   "Ciudad de Mexico","Coahuila","Colima","Durango","Guanajuato","Guerrero","Hidalgo","Jalisco",
   "Mexico (Estado de Mexico)","Michoacan","Morelos","Nayarit","Nuevo Leon","Oaxaca","Puebla","Queretaro",
   "Quintana Roo","San Luis Potosi","Sinaloa","Sonora","Tabasco","Tamaulipas","Tlaxcala","Veracruz","Yucatan","Zacatecas"];
 const TIPO_PERMISO=["Ejidal","Municipal","Federal libre","Federal cuota","Estatal","Cruce ferreo","Privado","Otro"];
 const SI_NO=["Si","No aplica"];
-const RESPONSABLES_ING=["Meir","Andrea","Jazmin","Cesar"];
+const RESPONSABLES_ING=["Cesar Antonio Zavala Garcia","Alba Jazmin Osorio Mejia","Edith Andrea Hernandez Sanchez"];
 const ESTATUS_OPTS=["Pendiente","Entregado","Rechazado"];
 
 const TRAMO_FIELDS = [
@@ -808,7 +816,7 @@ const TRAMO_FIELDS = [
   {campo:"Cantidad de ingresos", tipo:"text"},
   {campo:"Razon social", tipo:"select", opciones:["CTG","UC"]},
   {campo:"Cuadro de firmas", tipo:"archivo", accept:".pdf,image/*"},
-  {campo:"Responsables", tipo:"text"},
+  {campo:"Responsables", tipo:"archivo", accept:".pdf,image/*"},
   {campo:"Notas", tipo:"archivo", accept:".pdf,image/*"},
   {campo:"Planos generales", tipo:"select", opciones:SI_NO},
   {campo:"Planos proteccion de obra", tipo:"select", opciones:SI_NO},
@@ -1359,7 +1367,9 @@ function openLevantarSolicitud() {
   document.getElementById('levFolioReferencia').innerHTML = '';
   document.getElementById('levTramosReferenciaList').innerHTML = '';
   const sel = document.getElementById('levSolicitante');
-  sel.innerHTML = SOLICITANTES.map(s => `<option value="${s}">${s}</option>`).join('');
+  sel.innerHTML = SOLICITANTES.map(s => `<option value="${s}">${s}</option>`).join('') + `<option value="__otro__">Otro (escribir)</option>`;
+  document.getElementById('levSolicitanteOtro').value = '';
+  document.getElementById('levSolicitanteOtroWrap').style.display = 'none';
   document.getElementById('levProyectoRuta').value = '';
   document.getElementById('levLinkRuta').value = '';
   document.getElementById('levLinkRuta').placeholder = 'https://drive.google.com/...';
@@ -1428,8 +1438,17 @@ function openModificarSolicitud(folio, razon) {
 
   document.getElementById('levFolio').textContent = folio;
   const sel = document.getElementById('levSolicitante');
-  sel.innerHTML = SOLICITANTES.map(s => `<option value="${s}">${s}</option>`).join('');
-  sel.value = base.Solicitante || '';
+  sel.innerHTML = SOLICITANTES.map(s => `<option value="${s}">${s}</option>`).join('') + `<option value="__otro__">Otro (escribir)</option>`;
+  const nombreActual = base.Solicitante || '';
+  if (nombreActual && !SOLICITANTES.includes(nombreActual)) {
+    sel.value = '__otro__';
+    document.getElementById('levSolicitanteOtro').value = nombreActual;
+    document.getElementById('levSolicitanteOtroWrap').style.display = 'block';
+  } else {
+    sel.value = nombreActual;
+    document.getElementById('levSolicitanteOtro').value = '';
+    document.getElementById('levSolicitanteOtroWrap').style.display = 'none';
+  }
   document.getElementById('levProyectoRuta').value = base["Proyecto / Ruta"] || '';
 
   levKmzData = null; levImagenData = null;
@@ -1473,7 +1492,10 @@ async function guardarSolicitud() {
   const overlay = document.getElementById('overlayLevantar');
   const modo = overlay.dataset.modo || 'crear';
   const folio = modo === 'modificar-solicitud' ? overlay.dataset.folio : document.getElementById('levFolio').textContent;
-  const solicitante = document.getElementById('levSolicitante').value;
+  const selSolicitanteVal = document.getElementById('levSolicitante').value;
+  const solicitante = selSolicitanteVal === '__otro__'
+    ? document.getElementById('levSolicitanteOtro').value.trim()
+    : selSolicitanteVal;
   const proyectoRuta = document.getElementById('levProyectoRuta').value.trim();
   const linkRuta = levKmzData || document.getElementById('levLinkRuta').value.trim();
   const km = document.getElementById('levKm').value.trim();
@@ -1675,8 +1697,17 @@ function openResponderSolicitud(folio, modo, razon) {
   document.querySelector('#overlayResponder .lh-title').textContent = titulos[modo];
 
   const selResponsable = document.getElementById('respResponsable');
-  selResponsable.innerHTML = `<option value="">Selecciona...</option>` + RESPONSABLES_ING.map(r => `<option value="${r}">${r}</option>`).join('');
-  selResponsable.value = censo.responsable && censo.responsable !== '-' ? censo.responsable : '';
+  selResponsable.innerHTML = `<option value="">Selecciona...</option>` + RESPONSABLES_ING.map(r => `<option value="${r}">${r}</option>`).join('') + `<option value="__otro__">Otro (escribir)</option>`;
+  const responsableActual = censo.responsable && censo.responsable !== '-' ? censo.responsable : '';
+  if (responsableActual && !RESPONSABLES_ING.includes(responsableActual)) {
+    selResponsable.value = '__otro__';
+    document.getElementById('respResponsableOtro').value = responsableActual;
+    document.getElementById('respResponsableOtroWrap').style.display = 'block';
+  } else {
+    selResponsable.value = responsableActual;
+    document.getElementById('respResponsableOtro').value = '';
+    document.getElementById('respResponsableOtroWrap').style.display = 'none';
+  }
 
   const draft = draftConfirmacion[folio];
   let filasExistentes;
@@ -1724,7 +1755,10 @@ function openResponderSolicitud(folio, modo, razon) {
 
 function leerFilasTramoFormulario(folio, censo) {
   const base = censo.rows[0]; // conserva Solicitante, Proyecto/Ruta, Link ruta, KM, Imagen A, Link de seguimiento
-  const responsable = document.getElementById('respResponsable').value;
+  const selResponsableVal = document.getElementById('respResponsable').value;
+  const responsable = selResponsableVal === '__otro__'
+    ? document.getElementById('respResponsableOtro').value.trim()
+    : selResponsableVal;
   const bloques = document.querySelectorAll('#respTramosWrap .tramo-form-block');
   const filas = [];
   bloques.forEach((bloque, idx) => {
@@ -1777,8 +1811,10 @@ async function guardarRespuesta() {
     return;
   }
 
-  if (!document.getElementById('respResponsable').value) {
-    alert('Selecciona el Responsable de la respuesta.');
+  const respSelVal = document.getElementById('respResponsable').value;
+  const respNombreLibre = document.getElementById('respResponsableOtro').value.trim();
+  if (!respSelVal || (respSelVal === '__otro__' && !respNombreLibre)) {
+    alert('Selecciona (o escribe) el Responsable de la respuesta.');
     return;
   }
 

@@ -902,6 +902,43 @@ function construirFormatoOficialHtml() {
   return seccionSolicitud + seccionTramo + seccionChecklist + seccionValidacion;
 }
 
+function construirRequisitosMinimosHtml() {
+  const grupos = TRAMO_GRUPOS.map(grupo => {
+    const items = grupo.campos.map(c => `
+      <tr>
+        <td style="padding:6px 4px;border-bottom:1px solid #eee;width:24px;color:#2E6F5E;font-weight:bold;">✓</td>
+        <td style="padding:6px 4px;border-bottom:1px solid #eee;">${c}</td>
+      </tr>`).join('');
+    return `<div class="tramo-block" style="margin-bottom:14px;">
+      <div class="tramo-head" style="background:${grupo.color};">${grupo.nombre}</div>
+      <div style="padding:2px 14px 8px;"><table style="width:100%;border-collapse:collapse;">${items}</table></div>
+    </div>`;
+  }).join('');
+
+  const aviso = `
+    <div style="background:#FBE9EA;border:1px solid #E3B9BE;border-radius:4px;padding:16px 18px;margin-bottom:22px;">
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8C2F39;font-weight:bold;margin-bottom:6px;">
+        Aviso de responsabilidad
+      </div>
+      <div style="font-size:13px;color:#5c2126;line-height:1.5;">
+        Los elementos listados a continuación son los datos e información <b>mínimos</b> que el área de Ingeniería
+        requiere por cada dependencia y/o tramo detectado en el censo de afectación. En caso de que alguno de estos
+        elementos no sea entregado y, aun así, se decida avanzar con el proyecto, <b>se estarán asumiendo los
+        riesgos de retrabajo</b> que dicha omisión pueda generar.
+      </div>
+    </div>`;
+
+  return aviso + grupos;
+}
+
+function abrirRequisitosMinimos() {
+  const letterhead = construirLetterheadReporte('Censo de afectación', 'Requisitos Mínimos por Dependencia / Tramo', null,
+    'Información mínima requerida por Ingeniería');
+  const footer = `<div class="sheet-footer"><span>Documento generado automáticamente desde el Censo de Afectación.</span><span>C3NTRO · Ingeniería</span></div>`;
+  const html = construirRequisitosMinimosHtml();
+  abrirReporteVentana('Requisitos Mínimos', letterhead + `<div class="rep-body">${html}</div>` + footer);
+}
+
 function abrirFormatoOficial() {
   const letterhead = construirLetterheadReporte('Censo de afectación', 'Formato Oficial en Blanco', null,
     'Machote en blanco — para uso oficial / captura manual');
@@ -912,7 +949,7 @@ function abrirFormatoOficial() {
 
 function renderFormatos() {
   document.getElementById('formatosWrap').innerHTML = `
-    <div class="card" style="text-align:center;padding:50px 30px;">
+    <div class="card" style="text-align:center;padding:50px 30px;margin-bottom:20px;">
       <div style="font-size:16px;font-weight:bold;color:var(--navy);margin-bottom:8px;">Formato oficial en blanco</div>
       <div style="font-size:13px;color:#6b7b8c;max-width:480px;margin:0 auto 22px;">
         El machote completo del Censo de Afectación (Solicitud, Datos del Tramo, Checklist y Validación) tal como
@@ -920,6 +957,16 @@ function renderFormatos() {
       </div>
       <button class="upload-btn" style="background:var(--plum);margin:0 auto;" onclick="abrirFormatoOficial()">
         📄 Ver / Descargar formato en blanco
+      </button>
+    </div>
+    <div class="card" style="text-align:center;padding:50px 30px;">
+      <div style="font-size:16px;font-weight:bold;color:var(--navy);margin-bottom:8px;">Requisitos mínimos por dependencia / tramo</div>
+      <div style="font-size:13px;color:#6b7b8c;max-width:480px;margin:0 auto 22px;">
+        La lista de información y entregables mínimos que Ingeniería requiere para cada dependencia y/o tramo
+        detectado en el censo, junto con la nota de responsabilidad si se decide avanzar sin ellos.
+      </div>
+      <button class="upload-btn" style="background:var(--navy);margin:0 auto;" onclick="abrirRequisitosMinimos()">
+        📋 Ver / Descargar requisitos mínimos
       </button>
     </div>`;
 }

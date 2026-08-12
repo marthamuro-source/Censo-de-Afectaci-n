@@ -802,6 +802,7 @@ const TRAMO_FIELDS = [
   {campo:"Tipo de permiso", tipo:"select", opciones:TIPO_PERMISO},
   {campo:"Nombre de la autoridad", tipo:"text"},
   {campo:"Nombre y numero de carretera", tipo:"text"},
+  {campo:"Tramo", tipo:"text"},
   {campo:"Coordenada de inicio", tipo:"text"},
   {campo:"Coordenada de fin", tipo:"text"},
   {campo:"Cantidad de ingresos", tipo:"text"},
@@ -826,14 +827,14 @@ const TRAMO_FIELDS = [
 ];
 
 const TRAMO_GRUPOS = [
-  { nombre:"Datos del tramo", color:"var(--navy)", campos:["Estado","Tipo de permiso","Nombre de la autoridad",
-      "Nombre y numero de carretera","Coordenada de inicio","Coordenada de fin","Cantidad de ingresos","Razon social","Cuadro de firmas",
+  { nombre:"Información del tramo", color:"var(--navy)", campos:["Estado","Tipo de permiso","Nombre de la autoridad",
+      "Nombre y numero de carretera","Tramo","Coordenada de inicio","Coordenada de fin","Cantidad de ingresos","Razon social","Cuadro de firmas",
       "Responsables","Notas"] },
-  { nombre:"Alcance de entrega", color:"var(--steel)", campos:["Planos generales","Planos proteccion de obra","KMZ","Volumetria",
+  { nombre:"Alcance del proyecto ejecutivo", color:"var(--steel)", campos:["Planos generales","Planos proteccion de obra","KMZ","Volumetria",
       "Memoria tecnica","Memoria descriptiva","Memoria de calculo"] },
   { nombre:"Adicionales", color:"var(--plum)", campos:["Plano croquis","Reporte fotografico","Solicitud especial"] },
   { nombre:"Documentos complementarios", color:"var(--gold)", campos:["Programa de obra","Presupuesto"] },
-  { nombre:"Comentarios y documentos oficiales", color:"var(--teal)", campos:["Comentarios a detalle","Link documentos oficiales"] },
+  { nombre:"Observaciones adicionales", color:"var(--teal)", campos:["Comentarios a detalle","Link documentos oficiales"] },
 ];
 
 // ---------- Pestaña Formatos (machote oficial en blanco) ----------
@@ -903,28 +904,38 @@ function construirFormatoOficialHtml() {
 }
 
 function construirRequisitosMinimosHtml() {
+  const descripciones = {
+    "Alcance del proyecto ejecutivo": "Cada uno de los siguientes elementos deberá indicarse como Sí o No aplica, según forme parte o no del alcance final del proyecto ejecutivo.",
+    "Adicionales": "Indicar si aplica o no para el alcance final del proyecto ejecutivo.",
+    "Documentos complementarios": "Indicar si aplica o no para el alcance final del proyecto ejecutivo.",
+    "Observaciones adicionales": "Aquí se deberá informar o enviar los documentos oficiales que la dependencia haya compartido, que puedan ser de utilidad para lograr una entrega más óptima del expediente.",
+  };
+
   const grupos = TRAMO_GRUPOS.map(grupo => {
     const items = grupo.campos.map(c => `
       <tr>
         <td style="padding:6px 4px;border-bottom:1px solid #eee;width:24px;color:#2E6F5E;font-weight:bold;">✓</td>
         <td style="padding:6px 4px;border-bottom:1px solid #eee;">${c}</td>
       </tr>`).join('');
+    const desc = descripciones[grupo.nombre]
+      ? `<div style="padding:10px 14px 0;font-size:12px;color:#6b7b8c;font-style:italic;">${descripciones[grupo.nombre]}</div>`
+      : '';
     return `<div class="tramo-block" style="margin-bottom:14px;">
       <div class="tramo-head" style="background:${grupo.color};">${grupo.nombre}</div>
+      ${desc}
       <div style="padding:2px 14px 8px;"><table style="width:100%;border-collapse:collapse;">${items}</table></div>
     </div>`;
   }).join('');
 
   const aviso = `
-    <div style="background:#FBE9EA;border:1px solid #E3B9BE;border-radius:4px;padding:16px 18px;margin-bottom:22px;">
-      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8C2F39;font-weight:bold;margin-bottom:6px;">
-        Aviso de responsabilidad
+    <div style="background:#FFF7E0;border:1px solid #F0DCA0;border-radius:4px;padding:16px 18px;margin-bottom:22px;">
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#9C6500;font-weight:bold;margin-bottom:6px;">
+        Nota importante
       </div>
-      <div style="font-size:13px;color:#5c2126;line-height:1.5;">
-        Los elementos listados a continuación son los datos e información <b>mínimos</b> que el área de Ingeniería
-        requiere por cada dependencia y/o tramo detectado en el censo de afectación. En caso de que alguno de estos
-        elementos no sea entregado y, aun así, se decida avanzar con el proyecto, <b>se estarán asumiendo los
-        riesgos de retrabajo</b> que dicha omisión pueda generar.
+      <div style="font-size:13px;color:#5c4b00;line-height:1.5;">
+        Los siguientes son los datos e información <b>mínimos</b> que el área de Ingeniería requiere por cada
+        dependencia y/o tramo detectado en el censo de afectación. Si el proyecto avanza sin contar con alguno de
+        estos elementos, es importante tenerlo presente, ya que podría generar retrabajo más adelante.
       </div>
     </div>`;
 

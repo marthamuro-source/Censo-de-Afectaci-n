@@ -520,6 +520,15 @@
         <label>Nombre del responsable</label>
         <input type="text" id="respResponsableOtro" placeholder="Escribe el nombre completo">
       </div>
+      <div class="form-row">
+        <label>KMZ con tramos censados *</label>
+        <div class="file-upload-row">
+          <label class="file-chip">📎 Subir KMZ
+            <input type="file" accept=".kmz,.kml" id="respKmzFile" style="display:none" onchange="handleRespKmzUpload(event)">
+          </label>
+          <span id="respKmzStatus" class="file-status"></span>
+        </div>
+      </div>
     </div>
     <div style="padding:12px 36px 0;" id="respTramosWrap"></div>
     <div style="padding:0 36px;">
@@ -739,7 +748,7 @@ function abrirReporteVentana(tituloDoc, contenidoHtml) {
 }
 const CAMPOS_SOLICITUD=["Folio","Solicitante","Estado","Proyecto / Ruta","Link ruta a solicitar","KM"];
 const CAMPO_IMAGEN="Imagen A";
-const EXCLUIR_DE_TRAMO=new Set([...CAMPOS_SOLICITUD, CAMPO_IMAGEN, "Responsable"]);
+const EXCLUIR_DE_TRAMO=new Set([...CAMPOS_SOLICITUD, CAMPO_IMAGEN, "Responsable", "KMZ tramos censados"]);
 const ENTREGABLES=["Planos generales","Planos proteccion de obra","KMZ","Volumetria",
   "Memoria tecnica","Memoria descriptiva","Memoria de calculo","Plano croquis","Reporte fotografico",
   "Solicitud especial","Programa de obra","Presupuesto"];
@@ -818,10 +827,10 @@ const TRAMO_FIELDS = [
   {campo:"Cuadro de firmas", tipo:"archivo", accept:".pdf,image/*"},
   {campo:"Responsables", tipo:"archivo", accept:".pdf,image/*"},
   {campo:"Notas", tipo:"archivo", accept:".pdf,image/*"},
-  {campo:"Planos generales", tipo:"select", opciones:SI_NO},
+  {campo:"Planos generales", tipo:"select", opciones:SI_NO, default:"Si"},
   {campo:"Planos proteccion de obra", tipo:"select", opciones:SI_NO},
-  {campo:"KMZ", tipo:"select", opciones:SI_NO},
-  {campo:"Volumetria", tipo:"select", opciones:SI_NO},
+  {campo:"KMZ", tipo:"select", opciones:SI_NO, default:"Si"},
+  {campo:"Volumetria", tipo:"select", opciones:SI_NO, default:"Si"},
   {campo:"Memoria tecnica", tipo:"select", opciones:SI_NO},
   {campo:"Memoria descriptiva", tipo:"select", opciones:SI_NO},
   {campo:"Memoria de calculo", tipo:"select", opciones:SI_NO},
@@ -1268,7 +1277,7 @@ function openTramo(folio) {
   document.getElementById('tramoBody').innerHTML = rows.map((row, idx) => {
     const filas = campos
       .map(campo => ({ campo, val: row[campo] || '-' }))
-      .filter(({val}) => val !== 'No')
+      .filter(({campo, val}) => val !== 'No' && !((campo === 'Comentario solicitud especial' || campo === 'Documento solicitud especial') && !val))
       .map(({campo, val}) => {
         const esSiNo = ['Si','No aplica'].includes(val);
         let display;
@@ -1317,6 +1326,7 @@ function nextFolio() {
 
 // ---------- Levantar solicitud ----------
 let levImagenData = null, levKmzData = null;
+let respKmzTramosData = null;
 
 // Sube un archivo al bucket de Supabase Storage y regresa el link publico real.
 async function subirArchivoASupabase(file, statusEl) {
@@ -1327,6 +1337,16 @@ async function subirArchivoASupabase(file, statusEl) {
   if (error) { mostrarErrorSupabase('subir archivo', error); if (statusEl) statusEl.textContent = 'Error al subir el archivo.'; return null; }
   const { data } = sb.storage.from('censo-files').getPublicUrl(path);
   return data.publicUrl;
+}
+
+async function handleRespKmzUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('respKmzStatus');
+  const url = await subirArchivoASupabase(file, statusEl);
+  if (!url) return;
+  respKmzTramosData = url;
+  statusEl.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
 }
 
 async function handleImagenUpload(e) {
@@ -1619,7 +1639,27 @@ let respTramoCount = 0;
 function fieldInputHtml(field, idx) {
   const id = `resp_${idx}_${field.campo.replace(/[^\w]/g,'_')}`;
   if (field.tipo === 'select') {
-    return `<select id="${id}"><option value=""></option>${field.opciones.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>`;
+    const opts = field.opciones.map(o => `<option value="${o}" ${field.default===o?'selected':''}>${o}</option>`).join('');
+    const esSolicitudEspecial = field.campo === 'Solicitud especial';
+    const onchangeAttr = esSolicitudEspecial
+      ? ` onchange="document.getElementById('${id}_extra').style.display = this.value==='Si' ? 'block' : 'none';"`
+      : '';
+    let html = `<select id="${id}"${onchangeAttr}><option value="" ${field.default?'':'selected'}></option>${opts}</select>`;
+    if (esSolicitudEspecial) {
+      html += `
+        <div id="${id}_extra" style="display:none;margin-top:8px;">
+          <label style="display:block;font-size:10.5px;letter-spacing:0.5px;color:#6b7b8c;text-transform:uppercase;margin-bottom:4px;">Comentario de la solicitud especial</label>
+          <textarea id="${id}_comentario" rows="2" style="width:100%;border:1px solid var(--line);border-radius:2px;padding:8px;font-size:13px;font-family:Arial,sans-serif;margin-bottom:8px;"></textarea>
+          <div class="file-upload-row">
+            <label class="file-chip">📎 Subir documento
+              <input type="file" accept=".pdf,image/*" style="display:none" onchange="handleArchivoUpload(event, '${id}_documento')">
+            </label>
+            <span id="${id}_documento_status" class="file-status"></span>
+          </div>
+          <input type="hidden" id="${id}_documento">
+        </div>`;
+    }
+    return html;
   }
   if (field.tipo === 'textarea') {
     return `<textarea id="${id}" rows="2"></textarea>`;
@@ -1709,6 +1749,16 @@ function openResponderSolicitud(folio, modo, razon) {
     document.getElementById('respResponsableOtroWrap').style.display = 'none';
   }
 
+  document.getElementById('respKmzFile').value = '';
+  const kmzActual = censo.rows[0] && censo.rows[0]['KMZ tramos censados'];
+  if (kmzActual) {
+    respKmzTramosData = kmzActual;
+    document.getElementById('respKmzStatus').textContent = 'Archivo previamente cargado (sube otro para reemplazarlo)';
+  } else {
+    respKmzTramosData = null;
+    document.getElementById('respKmzStatus').textContent = '';
+  }
+
   const draft = draftConfirmacion[folio];
   let filasExistentes;
   if (draft && draft.tramos && draft.tramos.length > 0) {
@@ -1742,6 +1792,22 @@ function openResponderSolicitud(folio, modo, razon) {
           el.value = val;
         }
       });
+
+      // Precargar comentario/documento de Solicitud especial, si aplica
+      const idSolEsp = `resp_${idx}_Solicitud_especial`;
+      if (row["Solicitud especial"] === "Si") {
+        const extra = document.getElementById(`${idSolEsp}_extra`);
+        if (extra) extra.style.display = 'block';
+        const elComentario = document.getElementById(`${idSolEsp}_comentario`);
+        if (elComentario) elComentario.value = row["Comentario solicitud especial"] || "";
+        const docVal = row["Documento solicitud especial"] || "";
+        const elDocumento = document.getElementById(`${idSolEsp}_documento`);
+        if (elDocumento && esArchivoSubido(docVal)) {
+          elDocumento.dataset.fileuploaded = docVal;
+          const docStatus = document.getElementById(`${idSolEsp}_documento_status`);
+          if (docStatus) docStatus.textContent = 'Documento previamente cargado';
+        }
+      }
     });
   } else {
     addTramoFieldset();
@@ -1765,12 +1831,20 @@ function leerFilasTramoFormulario(folio, censo) {
     const fila = { Folio: folio, Solicitante: base.Solicitante, "Proyecto / Ruta": base["Proyecto / Ruta"],
       "Link ruta a solicitar": base["Link ruta a solicitar"],
       KM: base.KM, "Link de seguimiento": base["Link de seguimiento"], "Imagen A": base["Imagen A"],
-      Responsable: responsable };
+      Responsable: responsable, "KMZ tramos censados": respKmzTramosData || "" };
     TRAMO_FIELDS.forEach(f => {
       const id = `resp_${idx}_${f.campo.replace(/[^\w]/g,'_')}`;
       const el = document.getElementById(id);
       fila[f.campo] = el ? (el.dataset.fileuploaded || el.value.trim()) : "";
     });
+
+    // Solicitud especial: comentario y documento adicionales (solo si aplica)
+    const idSolEsp = `resp_${idx}_Solicitud_especial`;
+    const elComentario = document.getElementById(`${idSolEsp}_comentario`);
+    const elDocumento = document.getElementById(`${idSolEsp}_documento`);
+    fila["Comentario solicitud especial"] = elComentario ? elComentario.value.trim() : "";
+    fila["Documento solicitud especial"] = elDocumento ? (elDocumento.dataset.fileuploaded || elDocumento.value.trim()) : "";
+
     filas.push(fila);
   });
   return filas;
@@ -1815,6 +1889,11 @@ async function guardarRespuesta() {
   const respNombreLibre = document.getElementById('respResponsableOtro').value.trim();
   if (!respSelVal || (respSelVal === '__otro__' && !respNombreLibre)) {
     alert('Selecciona (o escribe) el Responsable de la respuesta.');
+    return;
+  }
+
+  if (!respKmzTramosData) {
+    alert('Sube el KMZ con los tramos censados.');
     return;
   }
 
@@ -2061,7 +2140,7 @@ function seccionTramoHtml(rows) {
   const bloques = rows.map((row, idx) => {
     const filas = campos
       .map(campo => ({ campo, val: row[campo] || '-' }))
-      .filter(({val}) => val !== 'No')
+      .filter(({campo, val}) => val !== 'No' && !((campo === 'Comentario solicitud especial' || campo === 'Documento solicitud especial') && !val))
       .map(({campo, val}) => {
         const esSiNo = ['Si','No aplica'].includes(val);
         let display;
@@ -2163,7 +2242,7 @@ function seccionRespuestaHistHtml(entry) {
   const bloques = rows.map((row, idx) => {
     const filas = campos
       .map(campo => ({ campo, val: row[campo] || '-' }))
-      .filter(({val}) => val !== 'No')
+      .filter(({campo, val}) => val !== 'No' && !((campo === 'Comentario solicitud especial' || campo === 'Documento solicitud especial') && !val))
       .map(({campo, val}) => {
         const esSiNo = ['Si','No aplica'].includes(val);
         let display;

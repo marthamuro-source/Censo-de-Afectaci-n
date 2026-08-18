@@ -531,8 +531,9 @@
       </div>
     </div>
     <div style="padding:12px 36px 0;" id="respTramosWrap"></div>
-    <div style="padding:0 36px;">
-      <button class="add-tramo-btn" onclick="addTramoFieldset()">+ Agregar otro tramo</button>
+    <div style="padding:0 36px;display:flex;gap:8px;">
+      <button class="add-tramo-btn" style="flex:1;" onclick="addTramoFieldset()">+ Agregar otro tramo</button>
+      <button class="add-tramo-btn" style="flex:1;background:#F5F7FB;border-color:var(--plum);color:var(--plum);" onclick="abrirRepetirTramo()">🔁 Repetir tramo de otro proyecto</button>
     </div>
     <div class="form-actions">
       <button class="btn-cancel" onclick="closeOverlay('overlayResponder')">Cancelar</button>
@@ -602,6 +603,25 @@
         </thead>
         <tbody id="listaKpiBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay: Repetir tramo de otro proyecto -->
+<div class="overlay" id="overlayRepetirTramo">
+  <div class="sheet" style="max-width:620px;">
+    <div class="sheet-actions">
+      <button class="icon-btn" onclick="closeOverlay('overlayRepetirTramo')">✕</button>
+    </div>
+    <div style="padding:20px 30px 6px;">
+      <div style="font-size:15px;font-weight:bold;color:var(--navy);">🔁 Repetir tramo de otro proyecto</div>
+      <div style="font-size:12px;color:#6b7b8c;margin-top:4px;">Paso 1: elige el censo de referencia.</div>
+    </div>
+    <div style="padding:6px 30px 26px;" id="repetirTramoPaso1"></div>
+
+    <div style="padding:6px 30px 26px;display:none;" id="repetirTramoPaso2">
+      <button class="btn-cancel" style="margin-bottom:14px;" onclick="volverAPaso1Repetir()">← Volver a la lista de censos</button>
+      <div id="repetirTramoListaTramos"></div>
     </div>
   </div>
 </div>
@@ -1724,6 +1744,92 @@ function addTramoFieldset() {
 function removeTramoFieldset(idx) {
   const el = document.getElementById(`tramoBlock_${idx}`);
   if (el) el.remove();
+}
+
+// ---------- Repetir tramo de otro proyecto ----------
+function abrirRepetirTramo() {
+  document.getElementById('repetirTramoPaso1').style.display = 'block';
+  document.getElementById('repetirTramoPaso2').style.display = 'none';
+  renderPaso1RepetirTramo();
+  document.getElementById('overlayRepetirTramo').classList.add('open');
+}
+
+function renderPaso1RepetirTramo() {
+  const censos = (window._censos || []).filter(c => c.workflow !== 'en_permisos');
+  document.getElementById('repetirTramoPaso1').innerHTML = censos.map(c => `
+    <div class="hist-item" style="cursor:pointer;" onclick="seleccionarCensoRepetir('${c.folio}')">
+      <div>
+        <div class="hi-label">${c.folio} — ${c.rows[0]['Proyecto / Ruta'] || '-'}</div>
+        <div class="hi-fecha">Solicitante: ${c.solicitante}</div>
+      </div>
+      <span style="color:var(--plum);font-size:13px;">Ver tramos ›</span>
+    </div>`).join('') || `<div style="color:#9aa7b5;text-align:center;padding:20px;font-size:13px;">Aún no hay censos con Datos del Tramo capturados.</div>`;
+}
+
+function volverAPaso1Repetir() {
+  document.getElementById('repetirTramoPaso1').style.display = 'block';
+  document.getElementById('repetirTramoPaso2').style.display = 'none';
+}
+
+function seleccionarCensoRepetir(folio) {
+  const censo = window._censos.find(c => c.folio === folio);
+  const tramos = censo.rows.filter(r => (r["Tipo de permiso"] || "").trim() !== "");
+  document.getElementById('repetirTramoListaTramos').innerHTML = tramos.map((t, idx) => `
+    <div class="hist-item" style="cursor:pointer;" onclick="usarTramoRepetido('${folio}', ${idx})">
+      <div>
+        <div class="hi-label">Tramo ${idx + 1} — ${t['Tipo de permiso'] || '-'}</div>
+        <div class="hi-fecha">${t['Nombre de la autoridad'] || '-'} · ${t['Nombre y numero de carretera'] || '-'}</div>
+      </div>
+      <span style="color:var(--plum);font-size:13px;">Usar este tramo ›</span>
+    </div>`).join('') || `<div style="color:#9aa7b5;text-align:center;padding:20px;font-size:13px;">Este censo no tiene tramos capturados.</div>`;
+
+  document.getElementById('repetirTramoPaso1').style.display = 'none';
+  document.getElementById('repetirTramoPaso2').style.display = 'block';
+}
+
+function usarTramoRepetido(folioOrigen, tramoIdx) {
+  const censoOrigen = window._censos.find(c => c.folio === folioOrigen);
+  const tramos = censoOrigen.rows.filter(r => (r["Tipo de permiso"] || "").trim() !== "");
+  const row = tramos[tramoIdx];
+  if (!row) return;
+
+  addTramoFieldset();
+  const idx = respTramoCount - 1;
+
+  TRAMO_FIELDS.forEach(f => {
+    const id = `resp_${idx}_${f.campo.replace(/[^\w]/g,'_')}`;
+    const el = document.getElementById(id);
+    if (!el) return;
+    const val = row[f.campo] || "";
+    if (f.tipo === 'archivo' && esArchivoSubido(val)) {
+      el.dataset.fileuploaded = val;
+      el.value = '';
+      el.placeholder = 'Archivo copiado del tramo original (sube otro para reemplazarlo)';
+      const status = document.getElementById(`${id}_status`);
+      if (status) status.textContent = 'Archivo copiado del tramo original';
+    } else {
+      el.value = val;
+    }
+  });
+
+  // Copiar tambien el comentario/documento de Solicitud especial, si aplica
+  const idSolEsp = `resp_${idx}_Solicitud_especial`;
+  if (row["Solicitud especial"] === "Si") {
+    const extra = document.getElementById(`${idSolEsp}_extra`);
+    if (extra) extra.style.display = 'block';
+    const elComentario = document.getElementById(`${idSolEsp}_comentario`);
+    if (elComentario) elComentario.value = row["Comentario solicitud especial"] || "";
+    const docVal = row["Documento solicitud especial"] || "";
+    const elDocumento = document.getElementById(`${idSolEsp}_documento`);
+    if (elDocumento && esArchivoSubido(docVal)) {
+      elDocumento.dataset.fileuploaded = docVal;
+      const docStatus = document.getElementById(`${idSolEsp}_documento_status`);
+      if (docStatus) docStatus.textContent = 'Documento copiado del tramo original';
+    }
+  }
+
+  closeOverlay('overlayRepetirTramo');
+  document.getElementById(`tramoBlock_${idx}`)?.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
 function openResponderSolicitud(folio, modo, razon) {

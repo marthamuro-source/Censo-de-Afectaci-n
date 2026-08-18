@@ -134,6 +134,7 @@
 
   .form-row { margin-bottom:12px; }
   .form-row label { display:block; font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:#6b7b8c; font-weight:bold; margin-bottom:4px; }
+  .ayuda-icono { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; background:#DDEBF7; color:#2E5395; font-size:10px; font-weight:bold; margin-left:5px; cursor:help; text-transform:none; letter-spacing:0; vertical-align:middle; }
   .form-row input, .form-row select, .form-row textarea {
     width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:2px; font-size:13.5px; font-family:Arial,sans-serif; color:var(--navy); background:#fff;
   }
@@ -842,7 +843,7 @@ const TRAMO_FIELDS = [
   {campo:"Tramo", tipo:"text"},
   {campo:"Coordenada de inicio", tipo:"text"},
   {campo:"Coordenada de fin", tipo:"text"},
-  {campo:"Cantidad de ingresos", tipo:"text"},
+  {campo:"Cantidad de ingresos", tipo:"text", ayuda:"Especifica el tipo y cantidad exacta. Ejemplos: '1 marginal y 2 cruces', o '2 marginales (separados por hombro) y 2 cruces'."},
   {campo:"Razon social", tipo:"select", opciones:["CTG","UC"]},
   {campo:"Cuadro de firmas", tipo:"archivo", accept:".pdf,image/*"},
   {campo:"Responsables", tipo:"archivo", accept:".pdf,image/*"},
@@ -1718,7 +1719,10 @@ function renderTramoFieldset(idx) {
   const gruposHtml = TRAMO_GRUPOS.map(grupo => {
     const camposHtml = grupo.campos.map(nombreCampo => {
       const f = camposMap[nombreCampo];
-      return `<div class="form-row"><label>${f.campo}</label>${fieldInputHtml(f, idx)}</div>`;
+      const ayudaHtml = f.ayuda
+        ? `<span class="ayuda-icono" title="${f.ayuda.replace(/"/g,'&quot;')}">?</span>`
+        : '';
+      return `<div class="form-row"><label>${f.campo}${ayudaHtml}</label>${fieldInputHtml(f, idx)}</div>`;
     }).join('');
     return `<div class="tramo-subgrupo">
       <div class="tramo-subgrupo-head" style="background:${grupo.color};">${grupo.nombre}</div>
